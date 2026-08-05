@@ -30,6 +30,15 @@ tower_data = {
 
 df_cdr = pd.DataFrame(cdr_data)
 df_towers = pd.DataFrame(tower_data)
+# --- ADD THIS TO YOUR MOCK DATASETS ---
+ipdr_data = {
+    'Suspect': ['Suspect_A', 'Suspect_B', 'Suspect_A', 'Suspect_C'],
+    'Timestamp': ['2026-08-01 22:45', '2026-08-01 23:15', '2026-08-02 01:30', '2026-08-02 02:45'],
+    'Service_App': ['WhatsApp VoIP', 'Telegram', 'ProtonMail', 'Signal'],
+    'Data_Usage_MB': [15.2, 5.5, 2.1, 8.4],
+    'Source_IP': ['192.168.1.15', '10.0.0.45', '192.168.1.15', '172.16.0.12']
+}
+df_ipdr = pd.DataFrame(ipdr_data)
 
 # --- SIDEBAR INTERACTIVE FILTERS ---
 st.sidebar.header("🔍 Intelligence Filters")
@@ -109,3 +118,10 @@ with tab2:
 with tab3:
     st.subheader("Raw Filtered Telecommunication Log")
     st.dataframe(filtered_cdr, use_container_width=True)
+
+# TAB 4: IPDR 
+with tab4:
+    st.subheader("Internet Protocol Detail Records (IPDR)")
+    st.caption("Tracks internet-based communications (VoIP, Messaging) bypassing standard cellular networks.")
+    st.dataframe(df_ipdr, use_container_width=True)
+
