@@ -1,5 +1,5 @@
 streamlit
 pandas
 folium
-network
+networkx
 matplotlib
