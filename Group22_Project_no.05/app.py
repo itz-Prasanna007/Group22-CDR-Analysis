@@ -4,134 +4,125 @@ import folium
 import networkx as nx
 import matplotlib.pyplot as plt
 import streamlit.components.v1 as components
+import io
 
 # --- PAGE CONFIGURATION ---
-st.set_page_config(page_title="CDR Intelligence Dashboard", layout="wide")
+st.set_page_config(page_title="Cyber Intelligence Tool", layout="wide")
 
-st.title("📡 CDR, IPDR & Tower Dump Intelligence Dashboard")
-st.caption("Cyber Shakti Internship 2.0 | Group 22: Jasdeep Kaur, Paras Khare, Aditya Sangwan, Prasanna Pavan Ghom")
+st.title("📡 Telecom Correlation & Timeline Reconstruction Engine")
+st.markdown("**Objective:** Correlate telecom records to reconstruct communication timelines and visualize investigative leads.")
+st.caption("Developed by Group 22: Jasdeep Kaur, Paras Khare, Aditya Sangwan, Prasanna Pavan Ghom")
 st.divider()
 
-# --- MOCK DATASETS ---
-# 1. Call Detail Records (CDR)
-cdr_data = {
-    'Caller': ['Suspect_A', 'Suspect_A', 'Suspect_B', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_C'],
-    'Receiver': ['Suspect_B', 'Suspect_C', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_A', 'Suspect_B'],
-    'Timestamp': ['2026-08-01 22:15', '2026-08-01 22:30', '2026-08-01 23:05', '2026-08-02 01:10', '2026-08-02 02:00', '2026-08-02 02:15', '2026-08-02 03:00'],
-    'Duration_Sec': [120, 45, 300, 15, 180, 200, 90],
-    'Tower_ID': ['T101', 'T101', 'T102', 'T103', 'T102', 'T101', 'T103']
-}
+# --- SAMPLE DATA GENERATOR (For Fallback) ---
+def load_sample_data():
+    cdr = pd.DataFrame({
+        'Caller': ['Suspect_A', 'Suspect_A', 'Suspect_B', 'Suspect_C'],
+        'Receiver': ['Suspect_B', 'Suspect_C', 'Suspect_C', 'Suspect_A'],
+        'Timestamp': ['2026-08-01 22:15:00', '2026-08-01 22:30:00', '2026-08-01 23:05:00', '2026-08-02 01:10:00'],
+        'Tower_ID': ['T101', 'T101', 'T102', 'T103']
+    })
+    ipdr = pd.DataFrame({
+        'Suspect': ['Suspect_A', 'Suspect_B'],
+        'Service': ['WhatsApp VoIP', 'Telegram'],
+        'Timestamp': ['2026-08-01 22:45:00', '2026-08-02 01:30:00'],
+        'Tower_ID': ['T101', 'T102']
+    })
+    towers = pd.DataFrame({
+        'Tower_ID': ['T101', 'T102', 'T103'],
+        'Location': ['Downtown Central', 'North Highway', 'West Station'],
+        'Latitude': [18.5204, 18.5314, 18.5100],
+        'Longitude': [73.8567, 73.8446, 73.8200]
+    })
+    return cdr, ipdr, towers
 
-# 2. Cell Tower Dump Data
-tower_data = {
-    'Tower_ID': ['T101', 'T102', 'T103'],
-    'Location': ['Downtown Central', 'North Highway', 'West Station'],
-    'Latitude': [18.5204, 18.5314, 18.5100],
-    'Longitude': [73.8567, 73.8446, 73.8200]
-}
+# --- SIDEBAR: DATA UPLOAD OR DEMO MODE ---
+st.sidebar.header("📂 1. Data Ingestion")
+st.sidebar.markdown("Upload raw files to reconstruct timelines.")
 
-# 3. Internet Protocol Detail Records (IPDR)
-ipdr_data = {
-    'Suspect': ['Suspect_A', 'Suspect_B', 'Suspect_A', 'Suspect_C'],
-    'Timestamp': ['2026-08-01 22:45', '2026-08-01 23:15', '2026-08-02 01:30', '2026-08-02 02:45'],
-    'Service_App': ['WhatsApp VoIP', 'Telegram', 'ProtonMail', 'Signal'],
-    'Data_Usage_MB': [15.2, 5.5, 2.1, 8.4],
-    'Source_IP': ['192.168.1.15', '10.0.0.45', '192.168.1.15', '172.16.0.12']
-}
+upload_cdr = st.sidebar.file_uploader("Upload CDR (CSV)", type="csv")
+upload_ipdr = st.sidebar.file_uploader("Upload IPDR (CSV)", type="csv")
+upload_towers = st.sidebar.file_uploader("Upload Tower Dump (CSV)", type="csv")
 
-df_cdr = pd.DataFrame(cdr_data)
-df_towers = pd.DataFrame(tower_data)
-df_ipdr = pd.DataFrame(ipdr_data)
+use_demo = st.sidebar.button("Run Demo / Sample Data")
 
-# --- SIDEBAR INTERACTIVE FILTERS ---
-st.sidebar.header("🔍 Intelligence Filters")
+# --- DATA PROCESSING LOGIC ---
+df_cdr, df_ipdr, df_towers = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-all_suspects = sorted(list(set(df_cdr['Caller'].unique()).union(set(df_cdr['Receiver'].unique()))))
-selected_suspect = st.sidebar.selectbox("Filter Person of Interest (POI):", ["All Suspects"] + all_suspects)
+if use_demo:
+    df_cdr, df_ipdr, df_towers = load_sample_data()
+    st.success("Loaded Sample Data successfully. Tool is in Demo Mode.")
+elif upload_cdr and upload_ipdr and upload_towers:
+    df_cdr = pd.read_csv(upload_cdr)
+    df_ipdr = pd.read_csv(upload_ipdr)
+    df_towers = pd.read_csv(upload_towers)
+    st.success("Raw files ingested successfully. Engine ready.")
+else:
+    st.info("👈 Please upload your CDR, IPDR, and Tower Dump CSV files in the sidebar, or click 'Run Demo' to test the tool.")
+    st.stop() # Stops execution until data is provided (makes it act like a real app)
 
-late_night_only = st.sidebar.checkbox("Flag Late-Night Calls Only (11 PM - 4 AM)")
+# --- ENGINE: TIMELINE RECONSTRUCTION ---
+# Standardizing and merging CDR and IPDR into a single timeline
+cdr_timeline = df_cdr[['Timestamp', 'Caller', 'Receiver', 'Tower_ID']].copy()
+cdr_timeline['Event_Type'] = 'Cellular Call'
+cdr_timeline.rename(columns={'Caller': 'Primary_Entity', 'Receiver': 'Secondary_Entity'}, inplace=True)
 
-# --- FILTERING LOGIC ---
-filtered_cdr = df_cdr.copy()
-filtered_ipdr = df_ipdr.copy()
+ipdr_timeline = df_ipdr[['Timestamp', 'Suspect', 'Service', 'Tower_ID']].copy()
+ipdr_timeline['Event_Type'] = 'Internet/Data'
+ipdr_timeline.rename(columns={'Suspect': 'Primary_Entity', 'Service': 'Secondary_Entity'}, inplace=True)
 
-if selected_suspect != "All Suspects":
-    filtered_cdr = filtered_cdr[(filtered_cdr['Caller'] == selected_suspect) | (filtered_cdr['Receiver'] == selected_suspect)]
-    filtered_ipdr = filtered_ipdr[filtered_ipdr['Suspect'] == selected_suspect]
+# Correlate and sort chronologically
+master_timeline = pd.concat([cdr_timeline, ipdr_timeline])
+master_timeline['Timestamp'] = pd.to_datetime(master_timeline['Timestamp'])
+master_timeline = master_timeline.sort_values(by='Timestamp').reset_index(drop=True)
 
-if late_night_only:
-    filtered_cdr = filtered_cdr[filtered_cdr['Timestamp'].str.contains('23:|01:|02:|03:')]
-    filtered_ipdr = filtered_ipdr[filtered_ipdr['Timestamp'].str.contains('23:|01:|02:|03:')]
+# Merge with Tower Data for geospatial coordinates
+correlated_data = pd.merge(master_timeline, df_towers, on='Tower_ID', how='left')
 
-# --- LIVE METRICS DASHBOARD ---
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("Total CDR Records", len(filtered_cdr))
-active_persons = set(filtered_cdr['Caller']).union(set(filtered_cdr['Receiver'])) if not filtered_cdr.empty else []
-m2.metric("Active Suspects Identified", len(active_persons))
-m3.metric("Unique Towers Pinged", filtered_cdr['Tower_ID'].nunique() if not filtered_cdr.empty else 0)
-anomalies = len(filtered_cdr[filtered_cdr['Timestamp'].str.contains('23:|01:|02:|03:')])
-m4.metric("Suspicious Late-Night Calls", anomalies)
+# --- UI TABS: VISUALIZING LEADS ---
+st.header("2. Investigative Leads & Correlation")
+tab1, tab2, tab3 = st.tabs(["⏱️ Chronological Timeline", "🗺️ Geospatial Movement", "🕸️ Link Analysis"])
 
-st.divider()
-
-# --- TABBED VIEW FOR INTERACTIVE DASHBOARD ---
-tab1, tab2, tab3, tab4 = st.tabs([
-    "🗺️ Geospatial Movement Map", 
-    "🕸️ Link Analysis Network", 
-    "📋 Filtered CDR Log", 
-    "🌐 IPDR Data Logs"
-])
-
-# TAB 1: INTERACTIVE MAP
 with tab1:
-    st.subheader("Suspect Movement Map")
-    merged_data = pd.merge(filtered_cdr, df_towers, on='Tower_ID')
+    st.subheader("Reconstructed Master Timeline")
+    st.caption("Integrated view of all cellular and data events sorted by exact timestamp.")
+    st.dataframe(correlated_data, use_container_width=True)
 
-    if not merged_data.empty:
-        intel_map = folium.Map(location=[18.5204, 73.8567], zoom_start=12)
+with tab2:
+    st.subheader("Geospatial Tower Correlation")
+    if not correlated_data.empty:
+        # Center map on the first tower hit
+        start_lat = correlated_data['Latitude'].iloc[0]
+        start_lon = correlated_data['Longitude'].iloc[0]
+        intel_map = folium.Map(location=[start_lat, start_lon], zoom_start=12)
 
-        for idx, row in merged_data.iterrows():
-            is_late = any(t in row['Timestamp'] for t in ['23:', '01:', '02:', '03:'])
-            popup_text = f"<b>Caller:</b> {row['Caller']}<br><b>Receiver:</b> {row['Receiver']}<br><b>Time:</b> {row['Timestamp']}<br><b>Tower:</b> {row['Location']}"
-
+        # Map iterations based on the chronological timeline
+        for idx, row in correlated_data.iterrows():
+            popup_html = f"<b>Entity:</b> {row['Primary_Entity']}<br><b>Event:</b> {row['Event_Type']}<br><b>Time:</b> {row['Timestamp']}<br><b>Location:</b> {row['Location']}"
+            
             folium.Marker(
                 location=[row['Latitude'], row['Longitude']],
-                popup=popup_text,
-                tooltip=f"{row['Caller']} @ {row['Location']}",
-                icon=folium.Icon(color='red' if is_late else 'blue', icon='phone')
+                popup=popup_html,
+                tooltip=f"Timeline Event #{idx + 1}",
+                icon=folium.Icon(color='red' if row['Event_Type'] == 'Internet/Data' else 'blue')
             ).add_to(intel_map)
 
-        intel_map.save("map.html")
-        with open("map.html", "r", encoding="utf-8") as f:
-            components.html(f.read(), height=450)
-        st.info("💡 **Interactive Tip:** Click on any marker to view communication timestamps and suspect locations.")
-    else:
-        st.warning("No records found matching the current filters.")
+        intel_map.save("timeline_map.html")
+        with open("timeline_map.html", "r", encoding="utf-8") as f:
+            components.html(f.read(), height=500)
+        st.caption("📍 Blue = Cellular Calls | 🔴 Red = Internet/App Usage (IPDR)")
 
-# TAB 2: NETWORK GRAPH
-with tab2:
-    st.subheader("Communication Network Link Graph")
-    if not filtered_cdr.empty:
-        fig, ax = plt.subplots(figsize=(8, 4))
-        G = nx.from_pandas_edgelist(filtered_cdr, source='Caller', target='Receiver', create_using=nx.DiGraph())
-        pos = nx.spring_layout(G, seed=42)
-        
-        nx.draw_networkx_nodes(G, pos, node_color='#1E88E5', node_size=2500, ax=ax)
-        nx.draw_networkx_labels(G, pos, font_color='white', font_weight='bold', ax=ax)
-        nx.draw_networkx_edges(G, pos, edge_color='#757575', arrowsize=20, width=2, ax=ax)
-        
-        ax.axis('off')
-        st.pyplot(fig)
-    else:
-        st.warning("No records available to display communication graph.")
-
-# TAB 3: DATA TABLE (CDR)
 with tab3:
-    st.subheader("Raw Filtered Telecommunication Log (CDR)")
-    st.dataframe(filtered_cdr, use_container_width=True)
-
-# TAB 4: DATA TABLE (IPDR)
-with tab4:
-    st.subheader("Internet Protocol Detail Records (IPDR)")
-    st.caption("Tracks internet-based communications (VoIP, Messaging, Cloud Services) bypassing standard cellular networks.")
-    st.dataframe(filtered_ipdr, use_container_width=True)
+    st.subheader("Network Link Graph")
+    fig, ax = plt.subplots(figsize=(8, 4))
+    
+    # Extract only cellular calls for the network graph
+    G = nx.from_pandas_edgelist(df_cdr, source='Caller', target='Receiver', create_using=nx.DiGraph())
+    pos = nx.spring_layout(G, seed=42)
+    
+    nx.draw_networkx_nodes(G, pos, node_color='#4CAF50', node_size=2000, ax=ax)
+    nx.draw_networkx_labels(G, pos, font_color='white', font_weight='bold', ax=ax)
+    nx.draw_networkx_edges(G, pos, edge_color='#BDBDBD', arrowsize=20, width=2, ax=ax)
+    
+    ax.axis('off')
+    st.pyplot(fig)
