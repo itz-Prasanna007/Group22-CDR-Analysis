@@ -13,6 +13,7 @@ st.caption("Cyber Shakti Internship 2.0 | Group 22: Jasdeep Kaur, Paras Khare, A
 st.divider()
 
 # --- MOCK DATASETS ---
+# 1. Call Detail Records (CDR)
 cdr_data = {
     'Caller': ['Suspect_A', 'Suspect_A', 'Suspect_B', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_C'],
     'Receiver': ['Suspect_B', 'Suspect_C', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_A', 'Suspect_B'],
@@ -21,6 +22,7 @@ cdr_data = {
     'Tower_ID': ['T101', 'T101', 'T102', 'T103', 'T102', 'T101', 'T103']
 }
 
+# 2. Cell Tower Dump Data
 tower_data = {
     'Tower_ID': ['T101', 'T102', 'T103'],
     'Location': ['Downtown Central', 'North Highway', 'West Station'],
@@ -28,9 +30,7 @@ tower_data = {
     'Longitude': [73.8567, 73.8446, 73.8200]
 }
 
-df_cdr = pd.DataFrame(cdr_data)
-df_towers = pd.DataFrame(tower_data)
-# --- ADD THIS TO YOUR MOCK DATASETS ---
+# 3. Internet Protocol Detail Records (IPDR)
 ipdr_data = {
     'Suspect': ['Suspect_A', 'Suspect_B', 'Suspect_A', 'Suspect_C'],
     'Timestamp': ['2026-08-01 22:45', '2026-08-01 23:15', '2026-08-02 01:30', '2026-08-02 02:45'],
@@ -38,6 +38,9 @@ ipdr_data = {
     'Data_Usage_MB': [15.2, 5.5, 2.1, 8.4],
     'Source_IP': ['192.168.1.15', '10.0.0.45', '192.168.1.15', '172.16.0.12']
 }
+
+df_cdr = pd.DataFrame(cdr_data)
+df_towers = pd.DataFrame(tower_data)
 df_ipdr = pd.DataFrame(ipdr_data)
 
 # --- SIDEBAR INTERACTIVE FILTERS ---
@@ -50,12 +53,15 @@ late_night_only = st.sidebar.checkbox("Flag Late-Night Calls Only (11 PM - 4 AM)
 
 # --- FILTERING LOGIC ---
 filtered_cdr = df_cdr.copy()
+filtered_ipdr = df_ipdr.copy()
 
 if selected_suspect != "All Suspects":
     filtered_cdr = filtered_cdr[(filtered_cdr['Caller'] == selected_suspect) | (filtered_cdr['Receiver'] == selected_suspect)]
+    filtered_ipdr = filtered_ipdr[filtered_ipdr['Suspect'] == selected_suspect]
 
 if late_night_only:
     filtered_cdr = filtered_cdr[filtered_cdr['Timestamp'].str.contains('23:|01:|02:|03:')]
+    filtered_ipdr = filtered_ipdr[filtered_ipdr['Timestamp'].str.contains('23:|01:|02:|03:')]
 
 # --- LIVE METRICS DASHBOARD ---
 m1, m2, m3, m4 = st.columns(4)
@@ -69,7 +75,12 @@ m4.metric("Suspicious Late-Night Calls", anomalies)
 st.divider()
 
 # --- TABBED VIEW FOR INTERACTIVE DASHBOARD ---
-tab1, tab2, tab3 = st.tabs(["🗺️ Geospatial Movement Map", "🕸️ Link Analysis Network", "📋 Filtered Records Log"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🗺️ Geospatial Movement Map", 
+    "🕸️ Link Analysis Network", 
+    "📋 Filtered CDR Log", 
+    "🌐 IPDR Data Logs"
+])
 
 # TAB 1: INTERACTIVE MAP
 with tab1:
@@ -114,14 +125,13 @@ with tab2:
     else:
         st.warning("No records available to display communication graph.")
 
-# TAB 3: DATA TABLE
+# TAB 3: DATA TABLE (CDR)
 with tab3:
-    st.subheader("Raw Filtered Telecommunication Log")
+    st.subheader("Raw Filtered Telecommunication Log (CDR)")
     st.dataframe(filtered_cdr, use_container_width=True)
 
-# TAB 4: IPDR 
+# TAB 4: DATA TABLE (IPDR)
 with tab4:
     st.subheader("Internet Protocol Detail Records (IPDR)")
-    st.caption("Tracks internet-based communications (VoIP, Messaging) bypassing standard cellular networks.")
-    st.dataframe(df_ipdr, use_container_width=True)
-
+    st.caption("Tracks internet-based communications (VoIP, Messaging, Cloud Services) bypassing standard cellular networks.")
+    st.dataframe(filtered_ipdr, use_container_width=True)
