@@ -5,70 +5,107 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import streamlit.components.v1 as components
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="CDR Analysis PoC", layout="wide")
-st.title("📡 Cyber Shakti: CDR & Tower Dump Intelligence Analysis")
-st.markdown("**Group 22:** Jasdeep Kaur, Paras Khare, Aditya Sangwan, Prasanna Pavan Ghom")
+# --- PAGE CONFIGURATION ---
+st.set_page_config(page_title="CDR Intelligence Dashboard", layout="wide")
+
+st.title("📡 CDR, IPDR & Tower Dump Intelligence Dashboard")
+st.caption("Cyber Shakti Internship 2.0 | Group 22: Jasdeep Kaur, Paras Khare, Aditya Sangwan, Prasanna Pavan Ghom")
 st.divider()
 
-# --- 1. MOCK DATASETS ---
+# --- MOCK DATASETS ---
 cdr_data = {
-    'Caller': ['Suspect_A', 'Suspect_A', 'Suspect_B', 'Suspect_C', 'Suspect_A', 'Suspect_B'],
-    'Receiver': ['Suspect_B', 'Suspect_C', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_A'],
-    'Timestamp': ['2026-08-01 22:15', '2026-08-01 22:30', '2026-08-01 23:05', '2026-08-02 01:10', '2026-08-02 02:00', '2026-08-02 02:15'],
-    'Duration_Sec': [120, 45, 300, 15, 180, 200],
-    'Tower_ID': ['T101', 'T101', 'T102', 'T103', 'T102', 'T101']
+    'Caller': ['Suspect_A', 'Suspect_A', 'Suspect_B', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_C'],
+    'Receiver': ['Suspect_B', 'Suspect_C', 'Suspect_C', 'Suspect_A', 'Suspect_B', 'Suspect_A', 'Suspect_B'],
+    'Timestamp': ['2026-08-01 22:15', '2026-08-01 22:30', '2026-08-01 23:05', '2026-08-02 01:10', '2026-08-02 02:00', '2026-08-02 02:15', '2026-08-02 03:00'],
+    'Duration_Sec': [120, 45, 300, 15, 180, 200, 90],
+    'Tower_ID': ['T101', 'T101', 'T102', 'T103', 'T102', 'T101', 'T103']
 }
+
 tower_data = {
     'Tower_ID': ['T101', 'T102', 'T103'],
     'Location': ['Downtown Central', 'North Highway', 'West Station'],
     'Latitude': [18.5204, 18.5314, 18.5100],
     'Longitude': [73.8567, 73.8446, 73.8200]
 }
+
 df_cdr = pd.DataFrame(cdr_data)
 df_towers = pd.DataFrame(tower_data)
 
-# --- UI: SHOW RAW DATA ---
-st.header("1. Data Ingestion")
-col1, col2 = st.columns(2)
-with col1:
-    st.subheader("Raw CDR Data")
-    st.dataframe(df_cdr, use_container_width=True)
-with col2:
-    st.subheader("Cell Tower Locations")
-    st.dataframe(df_towers, use_container_width=True)
+# --- SIDEBAR INTERACTIVE FILTERS ---
+st.sidebar.header("🔍 Intelligence Filters")
 
-# --- UI: INTEL ANALYSIS ---
-st.header("2. Communication Frequency")
-frequent_calls = df_cdr.groupby(['Caller', 'Receiver']).size().reset_index(name='Call_Count')
-st.dataframe(frequent_calls, use_container_width=True)
+all_suspects = sorted(list(set(df_cdr['Caller'].unique()).union(set(df_cdr['Receiver'].unique()))))
+selected_suspect = st.sidebar.selectbox("Filter Person of Interest (POI):", ["All Suspects"] + all_suspects)
 
-# --- UI: GEOSPATIAL MAP ---
-st.header("3. Suspect Geospatial Movement Map")
-merged_data = pd.merge(df_cdr, df_towers, on='Tower_ID')
-intel_map = folium.Map(location=[18.5204, 73.8567], zoom_start=13)
+late_night_only = st.sidebar.checkbox("Flag Late-Night Calls Only (11 PM - 4 AM)")
 
-for idx, row in merged_data.iterrows():
-    popup_text = f"Caller: {row['Caller']}<br>Receiver: {row['Receiver']}<br>Time: {row['Timestamp']}<br>Tower: {row['Location']}"
-    is_late_night = '23:' in row['Timestamp'] or '01:' in row['Timestamp'] or '02:' in row['Timestamp']
-    
-    folium.Marker(
-        location=[row['Latitude'], row['Longitude']],
-        popup=popup_text,
-        tooltip=f"Activity at {row['Tower_ID']}",
-        icon=folium.Icon(color='red' if is_late_night else 'blue', icon='info-sign')
-    ).add_to(intel_map)
+# --- FILTERING LOGIC ---
+filtered_cdr = df_cdr.copy()
 
-# Save map and render in Streamlit
-intel_map.save("map.html")
-with open("map.html", "r", encoding="utf-8") as f:
-    html_map = f.read()
-components.html(html_map, height=450)
-st.caption("🔴 Red markers indicate late-night suspicious activity.")
+if selected_suspect != "All Suspects":
+    filtered_cdr = filtered_cdr[(filtered_cdr['Caller'] == selected_suspect) | (filtered_cdr['Receiver'] == selected_suspect)]
 
-# --- UI: NETWORK GRAPH ---
-st.header("4. Link Analysis Network")
-fig, ax = plt.subplots(figsize=(8, 4))
-G = nx.from_pandas_edgelist(df_cdr, source='Caller', target='Receiver', create_using=nx.DiGraph())
-nx.draw_networkx(G, with_labels=True, node_color='#4CAF50', node_size=2500, font_weight='bold', font_color='white', arrowsize=20, ax=ax)
-st.pyplot(fig)
+if late_night_only:
+    filtered_cdr = filtered_cdr[filtered_cdr['Timestamp'].str.contains('23:|01:|02:|03:')]
+
+# --- LIVE METRICS DASHBOARD ---
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Total CDR Records", len(filtered_cdr))
+active_persons = set(filtered_cdr['Caller']).union(set(filtered_cdr['Receiver'])) if not filtered_cdr.empty else []
+m2.metric("Active Suspects Identified", len(active_persons))
+m3.metric("Unique Towers Pinged", filtered_cdr['Tower_ID'].nunique() if not filtered_cdr.empty else 0)
+anomalies = len(filtered_cdr[filtered_cdr['Timestamp'].str.contains('23:|01:|02:|03:')])
+m4.metric("Suspicious Late-Night Calls", anomalies)
+
+st.divider()
+
+# --- TABBED VIEW FOR INTERACTIVE DASHBOARD ---
+tab1, tab2, tab3 = st.tabs(["🗺️ Geospatial Movement Map", "🕸️ Link Analysis Network", "📋 Filtered Records Log"])
+
+# TAB 1: INTERACTIVE MAP
+with tab1:
+    st.subheader("Suspect Movement Map")
+    merged_data = pd.merge(filtered_cdr, df_towers, on='Tower_ID')
+
+    if not merged_data.empty:
+        intel_map = folium.Map(location=[18.5204, 73.8567], zoom_start=12)
+
+        for idx, row in merged_data.iterrows():
+            is_late = any(t in row['Timestamp'] for t in ['23:', '01:', '02:', '03:'])
+            popup_text = f"<b>Caller:</b> {row['Caller']}<br><b>Receiver:</b> {row['Receiver']}<br><b>Time:</b> {row['Timestamp']}<br><b>Tower:</b> {row['Location']}"
+
+            folium.Marker(
+                location=[row['Latitude'], row['Longitude']],
+                popup=popup_text,
+                tooltip=f"{row['Caller']} @ {row['Location']}",
+                icon=folium.Icon(color='red' if is_late else 'blue', icon='phone')
+            ).add_to(intel_map)
+
+        intel_map.save("map.html")
+        with open("map.html", "r", encoding="utf-8") as f:
+            components.html(f.read(), height=450)
+        st.info("💡 **Interactive Tip:** Click on any marker to view communication timestamps and suspect locations.")
+    else:
+        st.warning("No records found matching the current filters.")
+
+# TAB 2: NETWORK GRAPH
+with tab2:
+    st.subheader("Communication Network Link Graph")
+    if not filtered_cdr.empty:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        G = nx.from_pandas_edgelist(filtered_cdr, source='Caller', target='Receiver', create_using=nx.DiGraph())
+        pos = nx.spring_layout(G, seed=42)
+        
+        nx.draw_networkx_nodes(G, pos, node_color='#1E88E5', node_size=2500, ax=ax)
+        nx.draw_networkx_labels(G, pos, font_color='white', font_weight='bold', ax=ax)
+        nx.draw_networkx_edges(G, pos, edge_color='#757575', arrowsize=20, width=2, ax=ax)
+        
+        ax.axis('off')
+        st.pyplot(fig)
+    else:
+        st.warning("No records available to display communication graph.")
+
+# TAB 3: DATA TABLE
+with tab3:
+    st.subheader("Raw Filtered Telecommunication Log")
+    st.dataframe(filtered_cdr, use_container_width=True)
